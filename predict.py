@@ -1,52 +1,82 @@
 import sys
 import json
-import joblib
 import pandas as pd
+import joblib
+import numpy as np
 
-# Load model
-try:
-    model = joblib.load('heart_disease_model.pkl')
-except FileNotFoundError:
-    print(json.dumps({'error': 'Model file not found'}))
-    sys.exit(1)
+def generate_plans(prediction, age, country):
+    if prediction == "High Risk":
+        diet = "Low-sodium, heart-healthy diet with fruits, vegetables, whole grains, and lean proteins. Avoid fried foods and processed sugars."
+        exercise = "Moderate aerobic exercise like walking for 20-30 min, 5 days a week, as approved by a doctor."
+        yoga = "Gentle yoga (e.g., Hatha or chair yoga) for 15 min daily to reduce stress and improve circulation."
+        stress_management = "Practice meditation and deep breathing for 10-15 min daily to manage stress."
+    else:
+        diet = "Balanced diet with whole grains, fruits, vegetables, and lean proteins. Limit saturated fats."
+        exercise = "Regular exercise like brisk walking or cycling for 30 min, 5 days a week."
+        yoga = "Beginner yoga (e.g., Vinyasa) for 20 min daily to maintain flexibility."
+        stress_management = "Mindfulness practices for 10 min daily to promote mental well-being."
 
-# Get input from command line
-try:
-    input_data = json.loads(sys.argv[1])
-except (IndexError, json.JSONDecodeError):
-    print(json.dumps({'error': 'Invalid input data'}))
-    sys.exit(1)
+    # Adjust plans based on age
+    if int(age) >= 80:
+        exercise = "Light exercise like walking or stretching for 15 min daily, as per doctor's advice."
+        yoga = "Chair yoga or gentle stretching for 10 min daily to maintain mobility."
 
-# Prepare input to match UCI dataset features
-# CHANGE HERE: Adjust features to match your model inputs. UCI dataset expects 14 features.
-# Since we only have age, troponin, ecgHeartRate, fill others with defaults.
-input_dict = {
-    'age': int(input_data.get('age', 50)),  # Default age: 50 if not provided
-    'sex': 1,  # Default: male (1=male, 0=female)
-    'cp': 0,   # Default: no chest pain
-    'trestbps': 120,  # Default: resting blood pressure
-    'chol': 200,      # Default: cholesterol
-    'fbs': 0,         # Default: fasting blood sugar < 120 mg/dl
-    'restecg': 1 if int(input_data.get('ecgHeartRate', 70)) > 100 else 0,  # Fixed: Use Python's conditional expression
-    'thalach': int(input_data.get('ecgHeartRate', 70)),  # Max heart rate
-    'exang': 0,       # Default: no exercise-induced angina
-    'oldpeak': float(input_data.get('troponin', 0)) / 1000,  # Approximate troponin effect
-    'slope': 2,       # Default: flat slope
-    'ca': 0,          # Default: no major vessels colored
-    'thal': 2         # Default: normal
-}
+    # Adjust plans based on country
+    if country.lower() == "india":
+        diet += " Include millets and turmeric in meals for anti-inflammatory benefits."
+        yoga += " Consider traditional Indian yoga practices like Surya Namaskar if suitable."
 
-# Convert to DataFrame
-try:
-    input_df = pd.DataFrame([input_dict])
-except Exception as e:
-    print(json.dumps({'error': f'Input processing failed: {str(e)}'}))
-    sys.exit(1)
+    return {
+        "diet": diet,
+        "exercise": exercise,
+        "yoga": yoga,
+        "stressManagement": stress_management
+    }
 
-# Make prediction
-try:
-    prediction = model.predict(input_df)
-    print(json.dumps({'prediction': 'High Risk' if prediction[0] == 1 else 'Low Risk'}))
-except Exception as e:
-    print(json.dumps({'error': f'Prediction failed: {str(e)}'}))
-    sys.exit(1)
+def main():
+    try:
+        # Read input JSON
+        input_json = sys.argv[1]
+        input_data = json.loads(input_json)
+
+        # Extract input features
+        age = float(input_data.get('age', 50))
+        gender = float(input_data.get('gender', 1))  # 1=male, 0=female
+        heart_rate = float(input_data.get('heartRate', 70))
+        systolic_bp = float(input_data.get('systolicBloodPressure', 120))
+        diastolic_bp = float(input_data.get('diastolicBloodPressure', 80))
+        blood_sugar = float(input_data.get('bloodSugar', 100))
+        ck_mb = float(input_data.get('ckMb', 1.0))
+        troponin = float(input_data.get('troponin', 0.01))
+        country = input_data.get('country', 'India')
+
+        # Load model and scaler
+        model = joblib.load('heart_disease_model.pkl')
+        scaler = joblib.load('scaler.pkl')
+
+        # Prepare input as DataFrame with feature names
+        features = ['Age', 'Gender', 'Heart rate', 'Systolic blood pressure', 
+                    'Diastolic blood pressure', 'Blood sugar', 'CK-MB', 'Troponin']
+        input_features = pd.DataFrame([[age, gender, heart_rate, systolic_bp, diastolic_bp, blood_sugar, ck_mb, troponin]], 
+                                      columns=features)
+        input_scaled = scaler.transform(input_features)
+
+        # Predict
+        prediction = model.predict(input_scaled)[0]
+        prediction_label = "High Risk" if prediction == 1 else "Low Risk"
+
+        # Generate tailored plans
+        plans = generate_plans(prediction_label, age, country)
+
+        # Output result
+        result = {
+            "prediction": prediction_label,
+            "plans": plans
+        }
+        print(json.dumps(result))
+    except Exception as e:
+        print(f"Error: {str(e)}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
