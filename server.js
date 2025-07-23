@@ -56,5 +56,5 @@ app.post('/predict', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
+    console.log(`Server running on port ${port}`);    //node server.js
 });
