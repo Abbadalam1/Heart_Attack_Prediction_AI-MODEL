@@ -1,0 +1,4 @@
+pandas
+numpy
+scikit-learn
+joblib  # Add this if you're using joblib for model loading/saving
